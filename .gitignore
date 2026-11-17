@@ -1,0 +1,24 @@
+# Entorno virtual
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Base de datos y datos locales
+data/jarvis.db
+data/*.db
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Variables de entorno (por si más adelante usas alguna)
+.env
+
+# Modelos grandes (por si descargas alguno dentro del proyecto)
+*.gguf

@@ -1,0 +1,295 @@
+Creamos el virtual enviroment para aislar el proyecto del resto de cosas del proyecto.
+Primero dividimos el programa en partes, core es la carpeta base, encargada de la comunicacion con ollama y la toma de decisciones
+tools sirve para guardar todos los archivos de funciones y herramientas.
+Para poder importar cosas de un archivo o carpeta, necesitamos declarar que es un paquete. Esto lo hacemos creando un archivo vacio llamado __init__
+Tambien necesitamos un archivo para la configuracion importante del sistema, al ser solo un archivo puede estar en la raiz junto a main
+-----------Organizacion de archivos terminada, proseguimos con Ollama-----------------
+Instalamos a ollama desde navegador, elegimos sesion local
+Ahora decidimos modelo,
+Opciones de modelo para el futuro:
+gemma3:4b --- Agil, menos inteligente
+qwen2.5:14b --- Programacion
+llama3.1:8b --- Balanceado, estable y versatil
+gemma3:27b --- Mas potente, usa mas recursos
+Gemma 3:12b ---- Balanceado, el que elegi.
+
+Ollama run gemma3:12b --- Eso llama a Ollama, luego al escribir nos responde en consola.
+Para hablar mediante programa y no consola necesitamos instalar las librerias e importarlas en el archivo
+
+import ollama ---- Importamos ollama al programa
+
+Hablar con ollama:---------------
+Ollama tiene una funcion llamada chat
+Ya con ollama importada podemos hacer 
+ollama.chat()-------Esta es la funcion para hablar con ollama dentro del programa
+.chat() --- Tiene varios parametros importantes: 
+ollama.chat(model= "", message = [{}]) -------- En el parametro model debes meter el nombre del modelo al que le quieres hablar. El parametro message lleva mas cosas: 
+message = [{role = "user", content = ""}] ------ Se debe crear una lista con un diccionario dentro, lleva dos keys principales: role y content
+Dentro de role, hay tres opciones, "user", "assistant" y "system" 
+user: Le estas diciendo al programa que content va a llevar algo que ollama debe de responder, un mensaje del usuario para que ollama responda
+assistant: Le estas diciendo a ollama que lo que va en content es algo que el asistente dijo previamente, sirve para guardar registro o historial de conversaciones
+system: Indica que lo que va en content es un system prompt, personalidad, cosas que siempre siempre debe recordar el asistente (por ejemplo, si quiero que siempre me diga Mario, escribo un system prompt de que siempre me llame Mario )
+Luego esta content, en content va el contenido, mensaje o prompt, es lo que ollama lee digamos, si quiero hacerle una pregunta, seleccino role user y en content pongo la pregunta.
+
+Ejemplo-------------------------------
+
+import ollama
+from ollama import chat
+
+response = ollama.chat(
+    model="gemma3:12b",
+    messages=[
+        {"role": "user", "content": "Hola, ¿puedes presentarte en una frase?"}
+    ]
+)
+
+print(response["message"]["content"])
+----------------------------------------------------------------------------------------------
+
+Ya podemos hablar con ollama pero aun no retiene memoria de la converscion, lo que significa que es como si cada mensaje fuera el primeroe.
+
+Para eso necesitamos crear un archivo de memoria a corto plazo.
+
+Usamos una lista en donde vamos acumulando los mensajes y respuestas nuestros y de ollama, asi sabe de que hemos hablado. Tambien incluimos el system prompt para que mantenga su personalidad.
+
+Tenemos que poder clasificar los mensajes, asi ollama distingue entre lo que nosotros dijimos y lo que el respondio, asi como el prompt principal.
+
+Para esto usamos el archivo history, donde creamos una clase llamada historial, que contiene funciones que ayudan a clasificar las cosas.
+
+SIguiente pasoÑ Obtener la hora.
+Usamos la funcion de python datetime y la establecemos como funcion en el archivo hora.py
+
+Ahora el problema es decirle a Ollama que tiene disponible esta funcion
+
+Para eso se puede hacer de dos formasÑ
+1. Desde system prompt, decirle que si preguntamos sobre algo especifico (la hora) responda con un mensaje especifico, luego analizar la respuesta y si es ese mensaje especifico ejecutar la funcion
+2. Mandandole a Ollama la lista de Herramientas que tiene disponible, con un parametro llamado Tools dentro de ollama.chat()
+
+
+-----------Tools / herramientas-----------------
+Un agente no solo chatea: puede pedir herramientas (funciones de Python).
+Ollama NO ejecuta el código. Solo pide: nombre de tool + arguments.
+Nuestro programa ejecuta la función y le devuelve el resultado con role:"tool".
+Luego Ollama genera la respuesta final en texto normal.
+
+Flujo:
+1. Usuario habla
+2. ollama.chat(messages, tools=lista)
+3. Si hay tool_calls → leer name y arguments
+4. Ejecutar función Python (diccionario nombre→función)
+5. Append mensaje del asistente + mensaje role tool
+6. Segunda llamada a ollama.chat
+7. Mostrar content final
+
+Declarar tools (Herramientas.py):
+- Lista de diccionarios formato Ollama
+- parameters.type = object
+- Cada parámetro va en properties
+- required = lista de obligatorios
+- description le dice al modelo cuándo usarla
+
+arguments = valores que el modelo eligió (ej. {"ruta":"Notas.txt"})
+herramienta(**arguments) los pasa a la función
+
+Herramientas hechas:
+- obtener_hora: sin parámetros, datetime
+- leer_archivo(ruta): open + read; error en texto si falla
+  No busca en todo el disco: solo la ruta que indiques (relativa al proyecto o absoluta)
+
+Modelos:
+- gemma3:12b NO soporta tools nativos
+- qwen2.5:7b SÍ (el que usamos ahora)
+- coder y llama3.1:8b guardados para después
+
+Organización:
+- tools/: funciones reales
+- Herramientas.py: definiciones para Ollama
+- agent.responder: coordina chat + tools
+- main: solo input → historial → responder → print
+
+Dudas aclaradas:
+- Más tools casi no ralentizan; lo lento son 2 llamadas al modelo + historial largo
+- Hora vieja: el modelo reusa el resultado anterior del historial en vez de volver a llamar la tool (pendiente opción C)
+- filedialog posible después; primero ruta por parámetro (estilo agente)
+- __init__.py = marca carpeta como paquete para imports
+
+
+=====================================================================
+AVANCE 17/11/2026: MEMORIA AL INICIAR LA SESION Y SUBAGENTES
+=====================================================================
+
+IDEA GENERAL
+Evee ahora (1) recuerda lo que pasó en sesiones anteriores y empieza la
+conversación haciendo un repaso, y (2) puede mandar tareas a otros modelos
+especializados (subagentes). Primero el programador.
+
+
+---------------------------------------------------------------------
+PARTE 1: RECUERDOS AL INICIAR LA SESION
+---------------------------------------------------------------------
+
+Como funciona, paso a paso:
+1. Al arrancar se crea la tabla de recuerdos si no existe (inicializar).
+2. Historial lee los ultimos 5 recuerdos con listar() y los pega al final
+   del system prompt.
+3. Antes del while, main.py manda un mensaje oculto ("haz un repaso breve
+   de lo que recuerdas y pregunta en que seguimos") y Evee habla primero.
+4. Durante la charla el modelo puede guardar cosas solo con la herramienta
+   guardar_memoria. Tambien se puede guardar a mano escribiendo
+   "recuerda: ..." en la terminal.
+5. Al escribir "break", cerrar_sesion() le pide al modelo un resumen de
+   2-3 frases y lo guarda con tipo "resumen". Es la red de seguridad por
+   si el modelo no guardo nada durante la charla.
+6. En la siguiente sesion, ese resumen aparece en el repaso inicial.
+
+Archivos tocados:
+
+history.py
+  - Importa listar de core.memory.
+  - Trae los ultimos n recuerdos (vienen del mas nuevo al mas viejo), los
+    invierte para ponerlos en orden cronologico y los agrega al system
+    prompt como una lista: - [fecha] (tipo) texto
+
+main.py
+  - inicializar() ahora va ANTES de crear Historial(). Si no, en la
+    primera ejecucion listar() busca una tabla que no existe y da error.
+  - Se agrego el repaso inicial antes del while.
+  - Se agrego el comando "recuerda:" para guardar a mano.
+  - Se agrego try/except para que Ctrl+C tambien cierre bien y guarde.
+  - Al salir llama a cerrar_sesion().
+
+agent.py
+  - Nueva funcion cerrar_sesion(historial): arma una peticion con el
+    system prompt + la conversacion (sin el repaso inicial) + una
+    instruccion de resumir, y guarda el resultado.
+
+
+---------------------------------------------------------------------
+PARTE 2: CAMBIOS A LO QUE YA ESTABA HECHO Y POR QUE
+---------------------------------------------------------------------
+
+llm.py (antes no se usaba para nada)
+  - Ahora tiene MODELO = "qwen2.5:7b", chat() y hablar().
+  - agent.py ya no llama a ollama directo, todo pasa por llm.py.
+  - Por que: el nombre del modelo estaba repetido 3 veces. Ahora para
+    cambiar de modelo se edita UNA linea (y se hace ollama pull antes).
+
+agent.py
+  - La deteccion de hora usaba "hora" dentro del texto, y "ahora" lo
+    contiene. Si escribia "que hago ahora?" respondia la hora. Ahora usa
+    una regex con \b (limite de palabra) y frases mas especificas.
+  - Nueva funcion ejecutar_herramienta() con try/except: si el modelo
+    manda mal un argumento o pide una herramienta que no existe, el error
+    se le devuelve al modelo como texto en vez de tumbar el programa.
+  - Nueva funcion formatear(): listar y buscar devolvian listas de
+    tuplas y guardar devolvia True, y un modelo 7b lee mal eso. Ahora
+    recibe texto claro ("- [fecha] (tipo) texto", "No encontre
+    recuerdos.", "Guardado correctamente.").
+
+Herramientas.py
+  - guardar_memoria ahora expone el parametro "tipo" (hecho, preferencia,
+    pendiente, proyecto). Antes todo se guardaba como "hecho" porque el
+    esquema no se lo ofrecia al modelo.
+  - Regla: los nombres de los parametros del esquema deben ser EXACTAMENTE
+    los de la funcion (texto, tipo, palabra, n, ruta), si no falla
+    herramienta(**argumentos).
+
+(Mejora opcional) leer_archivo.py: buscar tambien en data/documents,
+cortar archivos largos (6000 caracteres) y atrapar UnicodeDecodeError.
+
+
+---------------------------------------------------------------------
+PARTE 3: SUBAGENTES
+---------------------------------------------------------------------
+
+Que es un subagente: otra llamada a ollama.chat con OTRO modelo y OTRO
+system prompt. Se expone como una herramienta mas (delegar). No hace
+falta ningun framework.
+
+Flujo:
+1. Le pido algo a Evee (el orquestador).
+2. Evee decide que es programacion y llama a la herramienta delegar.
+3. delegar manda la tarea al modelo programador (qwen2.5-coder:7b).
+4. El programador responde y la respuesta vuelve a Evee.
+5. Evee me la muestra.
+
+OJO: el subagente NO ve el historial, solo la tarea que Evee le pase. Por
+eso la descripcion de la herramienta pide incluir todo el contexto.
+
+Archivos:
+
+tools/subagentes.py
+  - Diccionario SUBAGENTES: nombre -> {modelo, system prompt}.
+  - Funcion delegar(agente, tarea) que hace la llamada al modelo
+    correspondiente y devuelve el texto.
+  - Para agregar otro especialista: una entrada nueva en SUBAGENTES y su
+    nombre en el "enum" del esquema.
+
+Herramientas.py
+  - Esquema de "delegar" con agente (enum) y tarea.
+
+agent.py
+  - Import de delegar y entrada "delegar": delegar en HERRAMIENTAS.
+  - Si la herramienta usada fue delegar, la respuesta se devuelve DIRECTA,
+    sin que Evee la reescriba. Ahorra una llamada al modelo y evita que
+    recorte o cambie el codigo.
+  - (Respaldo opcional) regex PIDE_CODIGO: si el modelo no delega pero el
+    mensaje suena a programacion, el codigo delega solo. Igual que ya se
+    hacia con la hora.
+
+Antes de usarlo: ollama pull qwen2.5-coder:7b
+
+
+---------------------------------------------------------------------
+PARTE 4: system.txt (lo que hay que decirle al modelo)
+---------------------------------------------------------------------
+Un modelo de 7B no hace caso si no se le dice explicito. Se agregaron
+reglas para:
+  - Usar guardar_memoria con datos duraderos (gustos, proyectos, fechas,
+    decisiones) y buscar_memoria antes de decir que no sabe algo.
+  - Guardar los recuerdos en tercera persona ("Señor quiere cambiar a
+    Linux"), no copiando la frase del usuario.
+  - Si no conoce un termino, decirlo con honestidad y no inventar.
+  - Responder SIEMPRE en español, sin mezclar ingles.
+  - Para cualquier tarea de programacion usar SIEMPRE delegar con el
+    agente "programador" y presentar el resultado completo.
+
+
+---------------------------------------------------------------------
+PROBLEMAS QUE SALIERON Y LECCIONES
+---------------------------------------------------------------------
+1. El modelo invento una herramienta llamada "DualBit" (era dual boot) en
+   vez de decir que no la conocia, y el resumen automatico lo guardo como
+   si fuera un hecho. LECCION: una memoria automatica tambien guarda los
+   errores del modelo. Se borro el recuerdo malo directo en la base con
+   un DELETE y se reforzo el system prompt.
+2. El resumen convirtio una duda en una decision ("prefiere dual boot",
+   cuando solo habia preguntado). SOLUCION: el pedido del resumen ahora
+   dice que guarde SOLO lo que dijo el usuario, que use "pregunto por X"
+   en vez de "prefiere/decidio" y que no incluya explicaciones tecnicas.
+3. Qwen a veces mete palabras en ingles. SOLUCION: regla en system.txt.
+4. El modelo no delegaba al programador. SOLUCION: reforzar system.txt
+   (con eso bastó); el respaldo por palabras clave queda por si falla.
+
+
+---------------------------------------------------------------------
+FLUJO COMPLETO ACTUAL
+---------------------------------------------------------------------
+inicio -> inicializar() -> Historial (system + ultimos recuerdos)
+       -> repaso inicial de Evee -> conversacion
+            - herramientas: hora, leer_archivo, memoria, delegar
+            - delegar -> modelo programador -> respuesta directa
+       -> "break" -> resumen guardado en la base -> fin
+
+
+---------------------------------------------------------------------
+IDEAS PENDIENTES (en orden)
+---------------------------------------------------------------------
+1. Mas subagentes (resumenes/documentos, vision).
+2. Leer PDFs y busqueda en documentos con embeddings.
+3. Vigilar paginas web (hash/texto en SQLite, avisar solo si cambia).
+4. Tareas programadas para correr lo anterior.
+5. Correo por IMAP, solo lectura al principio (riesgo de prompt injection).
+6. Generacion de imagenes (ComfyUI aparte, no va en Ollama).
+7. Marcar los resumenes como "automaticos, pueden tener imprecisiones".
+8. Sacar el proyecto de OneDrive (el .venv y la base dan problemas).
