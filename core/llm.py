@@ -1,6 +1,6 @@
 import ollama
 
-MODELO = "qwen2.5:7b"
+MODELO = "qwen3:8b"
 
 def chat(mensajes, herramientas=None):
     """Llamada a Ollama. Devuelve el mensaje completo (con tool_calls si hay)."""

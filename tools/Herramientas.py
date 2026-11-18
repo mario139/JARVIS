@@ -98,4 +98,18 @@ Herr = [
         },
     },
 },
+{
+    "type": "function",
+    "function": {
+        "name": "resumir_documento",
+        "description": "Resume un documento completo (PDF o texto), incluso si es largo. Úsala cuando el usuario pida un resumen de un archivo. Para leer solo un archivo corto usa leer_archivo.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ruta": {"type": "string", "description": "Nombre o ruta del archivo (se busca también en data/documents)"}
+            },
+            "required": ["ruta"]
+        }
+    }
+},
 ]

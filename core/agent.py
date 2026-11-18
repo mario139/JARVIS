@@ -2,7 +2,7 @@ import re
 from core.llm import chat, hablar
 from tools.Herramientas import Herr
 from tools.hora import obtener_Hora
-from tools.leer_archivos import leer_archivo
+from tools.leer_archivos import leer_archivo, resumir_documento
 from core.memory import guardar, buscar, listar
 from tools.subagentes import delegar
 
@@ -13,6 +13,7 @@ HERRAMIENTAS = {
     "buscar_memoria": buscar,
     "listar_memoria": listar,
     "delegar":delegar,
+    "resumir_documento": resumir_documento
 }
 
 PIDE_HORA = re.compile(
@@ -39,7 +40,7 @@ def ejecutar_herramienta(llamada):
         resultado = HERRAMIENTAS[nombre](**argumentos)
     except Exception as error:  # el modelo a veces manda argumentos mal
         resultado = f"Error al ejecutar {nombre}: {error}"
-    #print("tool:", nombre, "resultado:", resultado)
+    print("tool:", nombre, "resultado:", resultado)
     return nombre, formatear(resultado)
 
 
@@ -58,7 +59,7 @@ def responder(e):
         for llamada in llamadas:
             nombre, resultado = ejecutar_herramienta(llamada)
             lista2.append({"role": "tool", "name": nombre, "content": resultado})
-            if nombre == "delegar":
+            if nombre in ("delegar", "resumir_documento"):
                 directo.append(resultado)
         if directo:
             return "\n\n".join(directo)
